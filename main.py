@@ -256,6 +256,7 @@ class Main(plugin.Plugin):
         self.resgraph = QWidget()
         self.vlayout2 = QVBoxLayout(self.result)
         self.graphz = QGroupBox(self.resgraph)
+        self.graphz.setTitle(" Profile Charts ")
         self.hboxlayout2 = QHBoxLayout(self.graphz)
         try:
             from PyKDE4.kdeui import KLed
@@ -263,13 +264,17 @@ class Main(plugin.Plugin):
         except ImportError:
             pass
         self.hboxlayout2.addWidget(QLabel('''
-            Work in Progress  :)  Not Ready Yet'''))
+              <i> Work in Progress </i> '''))
+        self.chart = QLabel('')
+        # http://chart.googleapis.com/chart?cht=lc&chtt=Ninja_Charts&chg=9,9,2,2&chm=r,FF00004C,0,0.25,0.1&chs=600x200&chd=t:0,69,100&chdl=Calls/Min&chls=5,9,5&chf=c,lg,0,bebebe,0,76A4FB,1&chma=9,9,9,9&chxt=x,y&chxs=0,ff0000,12,0,lt|1,0000ff,10,1,lt
+        self.hboxlayout2.addWidget(self.chart)
         self.vlayout2.addWidget(self.graphz)
         self.tabWidget.addTab(self.resgraph, " Graphs and Charts ")
 
         self.pathz = QWidget()
         self.vlayout3 = QVBoxLayout(self.pathz)
         self.patz = QGroupBox(self.pathz)
+        self.patz.setTitle(" Backend Library Configuration ")
         self.hboxlayout3 = QVBoxLayout(self.patz)
         self.profilepath = QLineEdit(profilerPath)
         self.getprofile = QPushButton(QIcon.fromTheme("document-open"), 'Open')

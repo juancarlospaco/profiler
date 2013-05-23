@@ -18,7 +18,7 @@
 
 # metadata
 ' Python Profiler GUI '
-__version__ = ' 0.1 '
+__version__ = ' 0.2 '
 __license__ = ' GPL '
 __author__ = ' juancarlospaco '
 __email__ = ' juancarlospaco@ubuntu.com '
@@ -31,49 +31,20 @@ __source__ = ''
 
 # imports
 import sys
-from os import path
-from os import remove
-from os import getpid
-from os import pathsep
-from os import access
-from os import getenv
-from os import X_OK
+from os import path, remove, getpid, pathsep, access, getenv, X_OK
 from tempfile import gettempdir
 from pstats import Stats
 from re import match
 from webbrowser import open_new_tab
+from sip import setapi
 
-from PyQt4.QtGui import QLabel
-from PyQt4.QtGui import QPushButton
-from PyQt4.QtGui import QFileDialog
-from PyQt4.QtGui import QWidget
-from PyQt4.QtGui import QVBoxLayout
-from PyQt4.QtGui import QLineEdit
-from PyQt4.QtGui import QBrush
-from PyQt4.QtGui import QColor
-from PyQt4.QtGui import QDockWidget
-from PyQt4.QtGui import QMessageBox
-from PyQt4.QtGui import QPalette
-from PyQt4.QtGui import QHBoxLayout
-from PyQt4.QtGui import QProgressDialog
-from PyQt4.QtGui import QGroupBox
-from PyQt4.QtGui import QGridLayout
-from PyQt4.QtGui import QLCDNumber
-from PyQt4.QtGui import QTabWidget
-from PyQt4.QtGui import QTableWidget
-from PyQt4.QtGui import QTableWidgetItem
-from PyQt4.QtGui import QTreeWidget
-from PyQt4.QtGui import QTextEdit
-from PyQt4.QtGui import QToolBar
-from PyQt4.QtGui import QTreeWidgetItem
-from PyQt4.QtGui import QAction
-from PyQt4.QtGui import QSizePolicy
-from PyQt4.QtGui import QIcon
-from PyQt4.QtGui import QFrame
+from PyQt4.QtGui import (QLabel, QPushButton, QFileDialog, QWidget, QVBoxLayout,
+    QLineEdit, QBrush, QColor, QDockWidget, QMessageBox, QPalette, QHBoxLayout,
+    QProgressDialog, QGroupBox, QGridLayout, QLCDNumber, QTabWidget, QIcon,
+    QTableWidget, QTableWidgetItem, QTreeWidget, QTextEdit, QToolBar, QAction,
+    QTreeWidgetItem, QSizePolicy, QFrame)
 
-from PyQt4.QtCore import Qt
-from PyQt4.QtCore import QProcess
-from PyQt4.QtCore import QTimer
+from PyQt4.QtCore import Qt, QProcess, QTimer
 
 try:
     from PyQt4 import Qsci
@@ -82,6 +53,11 @@ except ImportError:
     QSCI = False
 
 from ninja_ide.core import plugin
+
+
+# API 2
+(setapi(a, 2) for a in ("QDate", "QDateTime", "QString", "QTime", "QUrl",
+                        "QTextStream", "QVariant"))
 
 
 # Constants used to name columns in widgets
@@ -118,7 +94,8 @@ for pathz in sys.path:
         profilerPath = profilerPath
         break
 
-tempPath = path.join(gettempdir(), "ninja-ide-profile" + str(getpid()) + ".tmp")
+tempPath = path.join(gettempdir(),
+                     "ninja-ide-profile-{}.tmp".format(str(getpid())))
 
 
 ###############################################################################
@@ -441,16 +418,16 @@ class Main(plugin.Plugin):
         #print((" INFO: OK: Terminal is %s " % termPath))
         #commandLine = """%s -e "%s ; echo 'Press ENTER Exit' ; read" """ \
                       #% (termPath, commandLine)
-        print((" INFO: OK: Command line is %s " % commandLine))
+        print((" INFO: OK: Command line is {} ".format(commandLine)))
         print(" INFO: OK: Working... ")
         self.process.start(commandLine)
         if not self.process.waitForStarted():
-            print((" ERROR: %s failed!" % (str(commandLine))))
+            print((" ERROR: {} Failed!".format((str(commandLine)))))
             return
 
     def on_process_finished(self, exitStatus):
         ' whan the process end '
-        print((" INFO: OK: QProcess is %s" % self.process.exitCode()))
+        print((" INFO: OK: QProcess is {} ".format(self.process.exitCode())))
         self.output = self.process.readAll().data()
         if not self.output:
             self.output = " ERROR: FAIL: No output ! "
@@ -478,7 +455,7 @@ class Main(plugin.Plugin):
             "Open profile dump", path.expanduser("~"), "Profile file (*)"))
         if statPath:
             self.clearContent()
-            print(' INFO: OK: Loading profiling from ' + statPath)
+            print(' INFO: OK: Loading profiling from {}'.format(statPath))
             self.setStat(statPath)
 
     def on_actionSave_profile_triggered(self):
@@ -487,7 +464,7 @@ class Main(plugin.Plugin):
                 "Save profile dump", path.expanduser("~"), "Profile file (*)"))
         if statPath:
             #TODO: handle error case and give feelback to user
-            print(' INFO: OK: Saving profiling to ' + statPath)
+            print(' INFO: OK: Saving profiling to {}'.format(statPath))
             self.stat.save(statPath)
 
     #=======================================================================#
@@ -568,7 +545,7 @@ class Main(plugin.Plugin):
         else:
             print(" Unknow tab for filterSearch timeout ! ")
 
-        print(("got %s members" % len(matchedItems)))
+        print((" INFO: Got {} members... ".format(len(matchedItems))))
         self.warnUSer(matchedItems, edit)
         self.resizeWidgetToContent(widget)
 
@@ -718,13 +695,13 @@ class Main(plugin.Plugin):
         line = self.tableWidget.item(item.row(), STAT_LINE).text()
 
         self.on_tabWidget_currentChanged(TAB_SOURCE)  # load source tab
-        function = "%s (%s)" % (function, line)
+        function = "{} ({})".format(function, line)
         fathers = self.sourceTreeWidget.findItems(filename, Qt.MatchContains,
                                                   SOURCE_FILENAME)
-        print(("find %s father" % len(fathers)))
+        print((" INFO: Find {} father...".format(len(fathers))))
         for father in fathers:
             findItems(father, function, SOURCE_FILENAME, matchedItems)
-        print(("find %s items" % len(matchedItems)))
+        print((" INFO: Find {} items...".format(len(matchedItems))))
 
         if matchedItems:
             self.tabWidget.setCurrentIndex(TAB_SOURCE)
@@ -733,7 +710,7 @@ class Main(plugin.Plugin):
                                                  SOURCE_FILENAME)
             matchedItems[0].setSelected(True)
         else:
-            print("oups, item found but cannot scroll to it !")
+            print(" WARNING: Weird: Item found but cannot scroll to it !")
 
     #=======================================================================#
     # Source explorer                                                      #
@@ -743,7 +720,7 @@ class Main(plugin.Plugin):
         items = {}
         for stat in self.stat.getStatKeys():
             source = stat[0]
-            function = "%s (%s)" % (stat[2], stat[1])
+            function = "{} ({})".format(stat[2], stat[1])
             if source in ("", "profile") or source.startswith("<"):
                 continue
             # Create the function child
@@ -839,7 +816,7 @@ def findItems(item, text, column, matchedItems):
 
 
 def key2Name(key):
-    return "%s:%s %s" % (key[0], key[1], key[2])
+    return "{}:{} {}".format(key[0], key[1], key[2])
 
 
 def colorTreeItem(item, column, total, value):

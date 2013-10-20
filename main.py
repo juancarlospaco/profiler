@@ -18,12 +18,12 @@
 
 # metadata
 ' Python Profiler GUI '
-__version__ = ' 0.2 '
+__version__ = ' 0.4 '
 __license__ = ' GPL '
 __author__ = ' juancarlospaco '
 __email__ = ' juancarlospaco@ubuntu.com '
 __url__ = 'github.com/juancarlospaco'
-__date__ = '01/05/2013'
+__date__ = '10/10/2013'
 __prj__ = 'profilergui'
 __docformat__ = 'html'
 __source__ = ''
@@ -36,13 +36,12 @@ from tempfile import gettempdir
 from pstats import Stats
 from re import match
 from webbrowser import open_new_tab
-from sip import setapi
 
 from PyQt4.QtGui import (QLabel, QPushButton, QFileDialog, QWidget, QVBoxLayout,
     QLineEdit, QBrush, QColor, QDockWidget, QMessageBox, QPalette, QHBoxLayout,
-    QProgressDialog, QGroupBox, QGridLayout, QLCDNumber, QTabWidget, QIcon,
-    QTableWidget, QTableWidgetItem, QTreeWidget, QTextEdit, QToolBar, QAction,
-    QTreeWidgetItem, QSizePolicy, QFrame)
+    QProgressDialog, QGroupBox, QGridLayout, QLCDNumber, QTabWidget,
+    QTableWidget, QTableWidgetItem, QTreeWidget, QTextEdit, QToolBar,
+    QTreeWidgetItem, QAction, QSizePolicy, QIcon, QFrame, QScrollArea)
 
 from PyQt4.QtCore import Qt, QProcess, QTimer
 
@@ -55,47 +54,25 @@ except ImportError:
 from ninja_ide.core import plugin
 
 
-# API 2
-(setapi(a, 2) for a in ("QDate", "QDateTime", "QString", "QTime", "QUrl",
-                        "QTextStream", "QVariant"))
-
-
-# Constants used to name columns in widgets
-TREE_FUNCTION = 0
-TREE_NCALLS = 1
-TREE_TTIME = 2
-TREE_CTIME = 3
-STAT_NCALLS = 0
-STAT_TTIME = 1
-STAT_TPERCALL = 2
-STAT_CTIME = 3
-STAT_CPERCALL = 4
-STAT_FILENAME = 5
-STAT_LINE = 6
-STAT_FUNCTION = 7
-SOURCE_FILENAME = 0
-TAB_FUNCTIONSTAT = 0
-TAB_SOURCE = 1
-# Standard Colors
-MATCHED_COLOR = QBrush(QColor("magenta"))
+# Constants
+TREE_FUNCTION, TREE_NCALLS, TREE_TTIME, TREE_CTIME, STAT_NCALLS = 0, 1, 2, 3, 0
+STAT_TTIME, STAT_TPERCALL, STAT_CTIME, STAT_CPERCALL = 1, 2, 3, 4
+STAT_FILENAME, STAT_LINE, STAT_FUNCTION, SOURCE_FILENAME = 5, 6, 7, 0
+TAB_FUNCTIONSTAT, TAB_SOURCE, MATCHED_COLOR = 0, 1, QBrush(QColor("magenta"))
+tempPath = path.join(gettempdir(), "ninja-ide-profile{}.tmp".format(getpid()))
 COLORS = [QColor(255, 0, 0), QColor(255, 128, 55), QColor(255, 187, 118),
           QColor(255, 231, 154), QColor(219, 255, 190)]
-# Triplet of rate, color and associated from more to the less important
 RATECOLORS = [(20.0 / 100, COLORS[0], QBrush(COLORS[0])),
               (10.0 / 100, COLORS[1], QBrush(COLORS[1])),
               (5.0 / 100, COLORS[2], QBrush(COLORS[2])),
               (1.0 / 100, COLORS[3], QBrush(COLORS[3])),
               (1.0 / 500, COLORS[4], QBrush(COLORS[4]))]
-
 profilerPath = ''
 for pathz in sys.path:
     profilerPath = path.abspath(path.join(pathz, "profile.py"))
     if path.exists(profilerPath):
         profilerPath = profilerPath
         break
-
-tempPath = path.join(gettempdir(),
-                     "ninja-ide-profile-{}.tmp".format(str(getpid())))
 
 
 ###############################################################################
@@ -106,22 +83,22 @@ class Main(plugin.Plugin):
     def initialize(self, *args, **kwargs):
         " Init Main Class "
         super(Main, self).initialize(*args, **kwargs)
-        ' GUI main window '
-
-        # Members
-        self.scriptPath = ""
-        self.scriptArgs = []
-        self.profilerPath = profilerPath
-        self.tempPath = tempPath
+        self.scriptPath, self.scriptArgs = "", []
+        self.profilerPath, self.tempPath = profilerPath, tempPath
         self.output = " ERROR: FAIL: No output ! "
 
-        # Background process definition
         self.process = QProcess()
         self.process.finished.connect(self.on_process_finished)
         self.process.error.connect(self.on_process_error)
 
-        self.tabWidget = QTabWidget()
-        self.stat = QWidget()
+        self.tabWidget, self.stat = QTabWidget(), QWidget()
+        self.tabWidget.tabCloseRequested.connect(lambda:
+            self.tabWidget.setTabPosition(1)
+            if self.tabWidget.tabPosition() == 0
+            else self.tabWidget.setTabPosition(0))
+        self.tabWidget.setStyleSheet('QTabBar{font-weight:bold;}')
+        self.tabWidget.setMovable(True)
+        self.tabWidget.setTabsClosable(True)
         self.vboxlayout1 = QVBoxLayout(self.stat)
         self.hboxlayout1 = QHBoxLayout()
         self.filterTableLabel = QLabel("<b>Type to Search : </b>", self.stat)
@@ -233,7 +210,6 @@ class Main(plugin.Plugin):
         self.resgraph = QWidget()
         self.vlayout2 = QVBoxLayout(self.result)
         self.graphz = QGroupBox(self.resgraph)
-        self.graphz.setTitle(" Profile Charts ")
         self.hboxlayout2 = QHBoxLayout(self.graphz)
         try:
             from PyKDE4.kdeui import KLed
@@ -241,17 +217,13 @@ class Main(plugin.Plugin):
         except ImportError:
             pass
         self.hboxlayout2.addWidget(QLabel('''
-              <i> Work in Progress </i> '''))
-        self.chart = QLabel('')
-        # http://chart.googleapis.com/chart?cht=lc&chtt=Ninja_Charts&chg=9,9,2,2&chm=r,FF00004C,0,0.25,0.1&chs=600x200&chd=t:0,69,100&chdl=Calls/Min&chls=5,9,5&chf=c,lg,0,bebebe,0,76A4FB,1&chma=9,9,9,9&chxt=x,y&chxs=0,ff0000,12,0,lt|1,0000ff,10,1,lt
-        self.hboxlayout2.addWidget(self.chart)
+            Work in Progress  :)  Not Ready Yet'''))
         self.vlayout2.addWidget(self.graphz)
         self.tabWidget.addTab(self.resgraph, " Graphs and Charts ")
 
         self.pathz = QWidget()
         self.vlayout3 = QVBoxLayout(self.pathz)
         self.patz = QGroupBox(self.pathz)
-        self.patz.setTitle(" Backend Library Configuration ")
         self.hboxlayout3 = QVBoxLayout(self.patz)
         self.profilepath = QLineEdit(profilerPath)
         self.getprofile = QPushButton(QIcon.fromTheme("document-open"), 'Open')
@@ -332,12 +304,12 @@ class Main(plugin.Plugin):
                                   "Sources Navigator")
         #######################################################################
 
-        self.dock = QDockWidget()
-        self.dock.setFeatures(QDockWidget.DockWidgetFloatable |
-                                           QDockWidget.DockWidgetMovable)
+        self.scrollable, self.dock = QScrollArea(), QDockWidget()
+        self.scrollable.setWidgetResizable(True)
+        self.scrollable.setWidget(self.tabWidget)
         self.dock.setWindowTitle(__doc__)
         self.dock.setStyleSheet('QDockWidget::title{text-align: center;}')
-        self.dock.setWidget(self.tabWidget)
+        self.dock.setWidget(self.scrollable)
         QToolBar(self.dock).addActions((self.actionNew_profiling,
             self.actionClean, self.actionSave_profile, self.actionLoad_profile,
             self.actionManual, self.actionAbout))
@@ -349,9 +321,8 @@ class Main(plugin.Plugin):
         self.actionSave_profile.triggered.connect(
                                         self.on_actionSave_profile_triggered)
 
-        self.misc = self.locator.get_service('misc')
-        self.misc.add_widget(self.dock,
-                             QIcon.fromTheme("document-open-recent"), __doc__)
+        self.locator.get_service('misc').add_widget(self.dock,
+                            QIcon.fromTheme("document-open-recent"), __doc__)
 
         if QSCI:
             # Scintilla source editor management
@@ -415,19 +386,16 @@ class Main(plugin.Plugin):
             #termPath = which(term)
             #if termPath:
                 #break
-        #print((" INFO: OK: Terminal is %s " % termPath))
         #commandLine = """%s -e "%s ; echo 'Press ENTER Exit' ; read" """ \
                       #% (termPath, commandLine)
-        print((" INFO: OK: Command line is {} ".format(commandLine)))
-        print(" INFO: OK: Working... ")
         self.process.start(commandLine)
         if not self.process.waitForStarted():
-            print((" ERROR: {} Failed!".format((str(commandLine)))))
+            print((" ERROR: {} failed!".format(commandLine)))
             return
 
     def on_process_finished(self, exitStatus):
         ' whan the process end '
-        print((" INFO: OK: QProcess is {} ".format(self.process.exitCode())))
+        print((" INFO: OK: QProcess is %s" % self.process.exitCode()))
         self.output = self.process.readAll().data()
         if not self.output:
             self.output = " ERROR: FAIL: No output ! "
@@ -455,7 +423,7 @@ class Main(plugin.Plugin):
             "Open profile dump", path.expanduser("~"), "Profile file (*)"))
         if statPath:
             self.clearContent()
-            print(' INFO: OK: Loading profiling from {}'.format(statPath))
+            print(' INFO: OK: Loading profiling from ' + statPath)
             self.setStat(statPath)
 
     def on_actionSave_profile_triggered(self):
@@ -464,7 +432,7 @@ class Main(plugin.Plugin):
                 "Save profile dump", path.expanduser("~"), "Profile file (*)"))
         if statPath:
             #TODO: handle error case and give feelback to user
-            print(' INFO: OK: Saving profiling to {}'.format(statPath))
+            print(' INFO: OK: Saving profiling to ' + statPath)
             self.stat.save(statPath)
 
     #=======================================================================#
@@ -545,7 +513,7 @@ class Main(plugin.Plugin):
         else:
             print(" Unknow tab for filterSearch timeout ! ")
 
-        print((" INFO: Got {} members... ".format(len(matchedItems))))
+        print(("got %s members" % len(matchedItems)))
         self.warnUSer(matchedItems, edit)
         self.resizeWidgetToContent(widget)
 
@@ -695,13 +663,13 @@ class Main(plugin.Plugin):
         line = self.tableWidget.item(item.row(), STAT_LINE).text()
 
         self.on_tabWidget_currentChanged(TAB_SOURCE)  # load source tab
-        function = "{} ({})".format(function, line)
+        function = "%s (%s)" % (function, line)
         fathers = self.sourceTreeWidget.findItems(filename, Qt.MatchContains,
                                                   SOURCE_FILENAME)
-        print((" INFO: Find {} father...".format(len(fathers))))
+        print(("find %s father" % len(fathers)))
         for father in fathers:
             findItems(father, function, SOURCE_FILENAME, matchedItems)
-        print((" INFO: Find {} items...".format(len(matchedItems))))
+        print(("find %s items" % len(matchedItems)))
 
         if matchedItems:
             self.tabWidget.setCurrentIndex(TAB_SOURCE)
@@ -710,7 +678,7 @@ class Main(plugin.Plugin):
                                                  SOURCE_FILENAME)
             matchedItems[0].setSelected(True)
         else:
-            print(" WARNING: Weird: Item found but cannot scroll to it !")
+            print("oups, item found but cannot scroll to it !")
 
     #=======================================================================#
     # Source explorer                                                      #
@@ -720,7 +688,7 @@ class Main(plugin.Plugin):
         items = {}
         for stat in self.stat.getStatKeys():
             source = stat[0]
-            function = "{} ({})".format(stat[2], stat[1])
+            function = "%s (%s)" % (stat[2], stat[1])
             if source in ("", "profile") or source.startswith("<"):
                 continue
             # Create the function child
@@ -816,7 +784,7 @@ def findItems(item, text, column, matchedItems):
 
 
 def key2Name(key):
-    return "{}:{} {}".format(key[0], key[1], key[2])
+    return "%s:%s %s" % (key[0], key[1], key[2])
 
 
 def colorTreeItem(item, column, total, value):
@@ -952,6 +920,10 @@ class Stat:
             return self.pStatArray[target][pStatTtriplet]
         except KeyError:
             return None
+
+    def finish(self):
+        ' clear when finish '
+        self.process.kill()
 
 
 ###############################################################################
